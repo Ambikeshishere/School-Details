@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Student Registration</title>
+<style>
+  :root{
+    --bg:#f3f5f9; --card:#ffffff; --ink:#1a2230; --muted:#5d6879; --line:#d5dbe6;
+    --primary:#2457d6; --primary-ink:#ffffff; --focus:#9db8f5;
+    --ok:#15803d; --ok-bg:#e8f6ee; --err:#b42318; --err-bg:#fdecea; --mark:#fff0a8;
+    --hover:#eef3ff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#10141c; --card:#181e29; --ink:#e8ecf3; --muted:#9aa5b8; --line:#2d3646;
+      --primary:#6c93f5; --primary-ink:#0b1220; --focus:#35508f;
+      --ok:#4ade80; --ok-bg:#12281c; --err:#ff8b7e; --err-bg:#2f1714; --mark:#5b4d0c;
+      --hover:#222b3d;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+    padding:20px 16px 48px;
+  }
+  .card{
+    max-width:560px; margin:0 auto; background:var(--card);
+    border:1px solid var(--line); border-radius:16px; padding:24px 20px 28px;
+  }
+  h1{font-size:1.4rem; margin:0 0 4px}
+  .sub{color:var(--muted); margin:0 0 18px; font-size:.95rem}
+  .field{margin-bottom:16px; position:relative}
+  label{display:block; font-weight:600; font-size:.92rem; margin-bottom:6px}
+  .req{color:var(--err)}
+  input[type=text], select{
+    width:100%; font:inherit; color:var(--ink); background:var(--card);
+    border:1px solid var(--line); border-radius:10px; padding:11px 12px;
+    min-height:46px; outline:none;
+  }
+  select{appearance:auto}
+  input:focus, select:focus{border-color:var(--primary); box-shadow:0 0 0 3px var(--focus)}
+  input:disabled, select:disabled{opacity:.55; cursor:not-allowed}
+  select#state:disabled{opacity:1; background:var(--hover); color:var(--ink); cursor:default}
+  input[readonly]{background:var(--hover)}
+  .hint{font-size:.83rem; color:var(--muted); margin-top:5px}
+  .err{font-size:.85rem; color:var(--err); margin-top:5px; min-height:0}
+  .invalid input, .invalid select{border-color:var(--err)}
+  .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  @media (max-width:480px){ .row{grid-template-columns:1fr} }
+
+  .combo{position:relative}
+  #schoolList{
+    list-style:none; margin:4px 0 0; padding:4px; position:absolute; left:0; right:0; z-index:20;
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    max-height:320px; overflow:auto; box-shadow:0 10px 30px rgba(0,0,0,.18);
+  }
+  #schoolList[hidden]{display:none}
+  #schoolList li{padding:10px 10px; border-radius:8px; cursor:pointer; font-size:.95rem; line-height:1.3}
+  #schoolList li[role=option]:hover, #schoolList li.active{background:var(--hover)}
+  #schoolList li.msg{color:var(--muted); cursor:default; font-size:.85rem}
+  #schoolList li.other{
+    margin-top:4px; border-top:1px dashed var(--line); border-radius:0 0 8px 8px;
+    color:var(--primary); font-weight:600;
+  }
+  mark{background:var(--mark); color:inherit; border-radius:3px; padding:0 1px}
+
+  button{font:inherit; cursor:pointer}
+  .btn{
+    width:100%; min-height:48px; border:0; border-radius:12px; font-weight:700;
+    background:var(--primary); color:var(--primary-ink); margin-top:6px;
+  }
+  .btn:disabled{opacity:.6; cursor:wait}
+  .btn.ghost{background:transparent; color:var(--primary); border:1px solid var(--line); margin-top:10px}
+  .link{background:none; border:0; color:var(--primary); padding:6px 0; font-size:.9rem; text-decoration:underline}
+
+  .banner{border-radius:10px; padding:10px 12px; font-size:.9rem; margin-bottom:16px}
+  .banner.loading{background:var(--hover); color:var(--muted)}
+  .banner.ok{background:var(--ok-bg); color:var(--ok)}
+  .banner.error{background:var(--err-bg); color:var(--err)}
+  .banner[hidden]{display:none}
+  .banner button{margin-left:8px}
+
+  #done{text-align:center; padding:8px 0}
+  #done .tick{
+    width:56px; height:56px; border-radius:50%; background:var(--ok-bg); color:var(--ok);
+    display:grid; place-items:center; font-size:30px; margin:0 auto 10px;
+  }
+  #done dl{text-align:left; margin:16px 0 4px; font-size:.92rem}
+  #done dt{color:var(--muted); font-size:.8rem; margin-top:8px}
+  #done dd{margin:0; font-weight:600}
+  [hidden]{display:none !important}
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>Student Registration</h1>
+  <p class="sub">Fill in all the details and press Submit.</p>
+
+  <div id="dataStatus" class="banner loading" role="status" aria-live="polite">Loading school list…</div>
+
+  <form id="regForm" novalidate autocomplete="off">
+    <div class="field" id="f-regNo">
+      <label for="regNo">Registration No. <span class="req">*</span></label>
+      <input type="text" id="regNo" maxlength="40">
+      <div class="err" data-for="regNo"></div>
+    </div>
+
+    <div class="field" id="f-studentName">
+      <label for="studentName">Student Name <span class="req">*</span></label>
+      <input type="text" id="studentName" maxlength="80">
+      <div class="err" data-for="studentName"></div>
+    </div>
+
+    <div class="field" id="f-classSel">
+      <label for="classSel">Class <span class="req">*</span></label>
+      <select id="classSel"><option value="">Select class</option></select>
+      <div class="err" data-for="classSel"></div>
+    </div>
+
+    <div class="row">
+      <div class="field" id="f-state">
+        <label for="state">State</label>
+        <select id="state" disabled></select>
+      </div>
+
+      <div class="field" id="f-district">
+        <label for="district">District <span class="req">*</span></label>
+        <select id="district" disabled><option value="">Loading districts…</option></select>
+        <div class="err" data-for="district"></div>
+      </div>
+    </div>
+
+    <div class="field" id="f-otherDistrict" hidden>
+      <label for="otherDistrict">Your district <span class="req">*</span></label>
+      <input type="text" id="otherDistrict" maxlength="80" placeholder="Type your district name">
+      <div class="err" data-for="otherDistrict"></div>
+    </div>
+
+    <div class="field" id="f-school">
+      <label for="schoolSearch">School <span class="req">*</span></label>
+      <div class="combo">
+        <input type="text" id="schoolSearch" role="combobox" aria-expanded="false"
+               aria-controls="schoolList" aria-autocomplete="list" disabled
+               placeholder="Select district first">
+        <ul id="schoolList" role="listbox" hidden></ul>
+      </div>
+      <div class="hint" id="schoolHint">Type the first few letters of your school name and pick it from the list.</div>
+      <div class="err" data-for="schoolSearch"></div>
+    </div>
+
+    <div class="field" id="f-otherSchool" hidden>
+      <label for="otherSchool">Your school's full name <span class="req">*</span></label>
+      <input type="text" id="otherSchool" maxlength="150" placeholder="Type the full name of your school">
+      <button type="button" class="link" id="backToSearch">← Search the school list again</button>
+      <div class="err" data-for="otherSchool"></div>
+    </div>
+
+    <div id="formError" class="banner error" role="alert" hidden></div>
+    <button type="submit" class="btn" id="submitBtn">Submit</button>
+  </form>
+
+  <section id="done" hidden>
+    <div class="tick" aria-hidden="true">✓</div>
+    <h1>Submitted</h1>
+    <p class="sub">Your details have been saved.</p>
+    <dl id="doneDetails"></dl>
+    <button type="button" class="btn" id="againSame">Add another student (same school)</button>
+    <button type="button" class="btn ghost" id="againNew">Start a new form</button>
+  </section>
+</main>
+
+<script>
+(function () {
+'use strict';
+
+/* ==================== SETTINGS — change only these ==================== */
+// Put the file next to index.html. The name is case-sensitive on Vercel/GitHub: School.csv
+const CSV_FILES = ["School.csv", "school.csv"];
+const STATE_NAME = "Maharashtra";                                     // only this state is used
+const APPS_SCRIPT_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";    // the .../exec link
+const CLASSES = ["1","2","3","4","5","6","7","8","9","10","11","12"];
+const MIN_CHARS = 2;        // letters needed before suggestions appear
+const MAX_RESULTS = 40;     // suggestions shown at once
+/* ====================================================================== */
+
+/*CORE_START*/
+function clean(s){ return String(s == null ? "" : s).replace(/\s+/g, " ").trim(); }
+function norm(s){
+  return String(s || "").toLowerCase().replace(/&/g, " and ")
+    .replace(/[^a-z0-9ऀ-ॿ]+/g, " ").trim();
+}
+function letters(s){ return String(s || "").toLowerCase().replace(/[^a-z]/g, ""); }
+
+function parseCSV(text){
+  const rows = []; let row = [], field = "", inQ = false, i = 0;
+  const n = text.length;
+  if (text.charCodeAt(0) === 0xFEFF) i = 1;
+  for (; i < n; i++){
+    const c = text[i];
+    if (inQ){
+      if (c === '"'){ if (text[i + 1] === '"'){ field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else {
+      if (c === '"' && field === "") inQ = true;
+      else if (c === ","){ row.push(field); field = ""; }
+      else if (c === "\n"){ row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c !== "\r") field += c;
+    }
+  }
+  if (field !== "" || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+
+function colIndex(head, re, dflt){
+  const i = head.findIndex(h => re.test(h));
+  return i === -1 ? dflt : i;
+}
+
+/* rows -> { districts: Map(districtName -> [{n,k,c}]), total } for ONE state only */
+function buildIndex(rows, stateName){
+  const head = (rows[0] || []).map(h => clean(h).toLowerCase());
+  const cSchool = colIndex(head, /school/, 0), cState = colIndex(head, /^state/, 1), cDist = colIndex(head, /^district/, 2);
+  const need = Math.max(cSchool, cState, cDist);
+  const want = letters(stateName);
+  const districts = new Map(), seen = new Map();
+  let total = 0;
+  for (let r = 1; r < rows.length; r++){               // row 0 = header
+    const row = rows[r];
+    if (row.length <= need) continue;
+    if (letters(row[cState]) !== want) continue;       // keep only this state
+    const name = clean(row[cSchool]);
+    if (!name) continue;
+    const dn = clean(row[cDist]) || "(District not specified)";
+    const k = norm(name);
+    if (!k) continue;
+    let list = districts.get(dn), s = seen.get(dn);
+    if (!list){ list = []; s = new Set(); districts.set(dn, list); seen.set(dn, s); }
+    if (s.has(k)) continue;                            // skip duplicate school names
+    s.add(k);
+    list.push({ n: name, k: k, c: k.replace(/ /g, "") });
+    total++;
+  }
+  return { districts: districts, total: total };
+}
+
+/* Every typed word must match. Word-start matches rank first. */
+function searchSchools(list, query, limit){
+  const toks = norm(query).split(" ").filter(Boolean);
+  if (!toks.length) return { items: [], total: 0 };
+  const hits = [];
+  for (let i = 0; i < list.length; i++){
+    const s = list[i], sp = " " + s.k;
+    let score = 0, ok = true;
+    for (let j = 0; j < toks.length; j++){
+      const t = toks[j];
+      if (sp.indexOf(" " + t) !== -1) { /* word starts with it */ }
+      else if (s.k.indexOf(t) !== -1) score += 1;                    // inside a word
+      else if (t.length >= 3 && s.c.indexOf(t) !== -1) score += 2;   // ignoring spaces/dots
+      else { ok = false; break; }
+    }
+    if (!ok) continue;
+    if (s.k.indexOf(toks[0]) === 0) score -= 1;
+    hits.push({ s: s, score: score });
+  }
+  hits.sort((a, b) => a.score - b.score || a.s.n.length - b.s.n.length || (a.s.n < b.s.n ? -1 : 1));
+  return { items: hits.slice(0, limit).map(h => h.s), total: hits.length };
+}
+/*CORE_END*/
+
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+function highlight(name, q){
+  const toks = norm(q).split(" ").filter(Boolean);
+  if (!toks.length) return esc(name);
+  const re = new RegExp("(" + toks.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "gi");
+  return name.split(re).map((p, i) => i % 2 ? "<mark>" + esc(p) + "</mark>" : esc(p)).join("");
+}
+
+/* ---------------- state ---------------- */
+let INDEX = null;             // { districts: Map, total }
+let districtList = [];
+let selectedSchool = null;
+let schoolMode = "list";      // "list" | "other"
+let currentResults = [];
+let activeIdx = -1;
+let submitting = false;
+
+const stateSel = $("state"), districtSel = $("district"), classSel = $("classSel");
+const schoolInput = $("schoolSearch"), schoolList = $("schoolList"), schoolHint = $("schoolHint");
+const HINT_DEFAULT = "Type the first few letters of your school name and pick it from the list.";
+
+/* ---------------- static dropdowns ---------------- */
+CLASSES.forEach(c => classSel.add(new Option("Class " + c, c)));
+stateSel.add(new Option(STATE_NAME, STATE_NAME));     // only one state
+stateSel.value = STATE_NAME;
+
+/* ---------------- loading School.csv ---------------- */
+function setStatus(kind, html){
+  const el = $("dataStatus");
+  el.hidden = false;
+  el.className = "banner " + kind;
+  el.innerHTML = html;
+  const rb = el.querySelector("button");
+  if (rb) rb.addEventListener("click", loadData);
+}
+
+async function downloadCSV(){
+  let lastErr = null;
+  for (const name of CSV_FILES){
+    try {
+      const res = await fetch(name);
+      if (!res.ok){ lastErr = new Error(name + " not found (HTTP " + res.status + ")"); continue; }
+      let text = "";
+      if (res.body && res.body.getReader){
+        const reader = res.body.getReader(), dec = new TextDecoder("utf-8");
+        let bytes = 0;
+        for (;;){
+          const { done, value } = await reader.read();
+          if (done) break;
+          bytes += value.length;
+          text += dec.decode(value, { stream: true });
+          setStatus("loading", "Loading school list… " + (bytes / 1048576).toFixed(1) + " MB");
+        }
+        text += dec.decode();
+      } else {
+        text = await res.text();
+      }
+      if (/^\s*</.test(text)){ lastErr = new Error(name + " not found (got a web page instead)"); continue; }
+      return text;
+    } catch (e){ lastErr = e; }
+  }
+  throw lastErr || new Error("School.csv not found");
+}
+
+function explain(err){
+  const m = (err && err.message) || String(err);
+  if (/failed to fetch|networkerror|load failed/i.test(m))
+    return "School.csv could not be reached. Keep it in the same folder as index.html and open the page through your website link (not by double-clicking the file).";
+  if (/not found|HTTP 404/i.test(m))
+    return "School.csv was not found next to index.html. The file name must be exactly School.csv.";
+  return esc(m);
+}
+
+function fillDistricts(names){
+  districtSel.innerHTML = "";
+  districtSel.add(new Option("Select district", ""));
+  names.forEach(n => districtSel.add(new Option(n, n)));
+  districtSel.add(new Option("Other (not in list)", "__other__"));
+  districtSel.disabled = false;
+  if (!names.length){            // nothing from the CSV: let them type the district
+    districtSel.value = "__other__";
+    onDistrictChange();
+  }
+}
+
+async function loadData(){
+  INDEX = null;
+  districtSel.innerHTML = ""; districtSel.add(new Option("Loading districts…", "")); districtSel.disabled = true;
+  resetSchool(); $("f-otherDistrict").hidden = true;
+  setStatus("loading", "Loading school list…");
+  try {
+    const text = await downloadCSV();
+    setStatus("loading", "Preparing school list…");
+    await new Promise(r => setTimeout(r, 30));
+    const idx = buildIndex(parseCSV(text), STATE_NAME);
+    if (!idx.districts.size) throw new Error("No " + STATE_NAME + " schools found in the file");
+    INDEX = idx;
+    fillDistricts([...idx.districts.keys()].sort((a, b) => a.localeCompare(b)));
+    setStatus("ok", "School list ready (" + idx.total.toLocaleString("en-IN") + " schools).");
+    setTimeout(() => { if ($("dataStatus").classList.contains("ok")) $("dataStatus").hidden = true; }, 2000);
+  } catch (err) {
+    INDEX = null;
+    setStatus("error", explain(err) + " You can still type your district and school name. <button type=\"button\" class=\"link\">Retry</button>");
+    fillDistricts([]);
+  }
+}
+
+/* ---------------- district -> school ---------------- */
+function resetSchool(){
+  schoolMode = "list"; selectedSchool = null; districtList = [];
+  schoolInput.value = ""; schoolInput.readOnly = false; schoolInput.disabled = true;
+  schoolInput.placeholder = "Select district first";
+  schoolHint.textContent = HINT_DEFAULT;
+  $("f-school").hidden = false; $("f-otherSchool").hidden = true; $("otherSchool").value = "";
+  closeList();
+}
+
+/* no list to search (unlisted district / CSV failed): ask for the school name directly */
+function useManualSchool(){
+  $("f-school").hidden = true;
+  schoolMode = "other";
+  $("f-otherSchool").hidden = false;
+  $("backToSearch").hidden = true;
+}
+
+function showSchoolSearch(){
+  $("f-school").hidden = false; $("f-otherSchool").hidden = true;
+  $("backToSearch").hidden = false;
+  schoolMode = "list";
+  schoolInput.disabled = false;
+  schoolInput.placeholder = "Type first letters of your school name…";
+  schoolHint.textContent = districtList.length.toLocaleString("en-IN") + " schools in this district. Type at least " + MIN_CHARS + " letters.";
+}
+
+function onDistrictChange(){
+  resetSchool();
+  const dv = districtSel.value;
+  $("f-otherDistrict").hidden = dv !== "__other__";
+  if (dv !== "__other__") $("otherDistrict").value = "";
+  if (!dv) return;
+  if (dv === "__other__"){ useManualSchool(); return; }
+  const list = INDEX && INDEX.districts.get(dv);
+  districtList = list || [];
+  if (!districtList.length){ useManualSchool(); return; }
+  showSchoolSearch();
+}
+
+function enterOtherSchoolMode(){
+  schoolMode = "other"; selectedSchool = null;
+  schoolInput.value = "Other (school not in list)"; schoolInput.readOnly = true;
+  $("f-otherSchool").hidden = false;
+  closeList();
+  $("otherSchool").focus();
+}
+function backToSearch(){
+  schoolMode = "list"; selectedSchool = null;
+  schoolInput.readOnly = false; schoolInput.value = "";
+  $("f-otherSchool").hidden = true; $("otherSchool").value = "";
+  schoolInput.focus();
+}
+
+/* ---------------- school suggestions ---------------- */
+function openList(){ schoolList.hidden = false; schoolInput.setAttribute("aria-expanded", "true"); }
+function closeList(){ schoolList.hidden = true; schoolInput.setAttribute("aria-expanded", "false"); activeIdx = -1; }
+
+function renderList(){
+  const q = schoolInput.value;
+  let html = "";
+  currentResults = [];
+  if (norm(q).length < MIN_CHARS){
+    html += '<li class="msg">Type at least ' + MIN_CHARS + ' letters of your school name…</li>';
+  } else {
+    const r = searchSchools(districtList, q, MAX_RESULTS);
+    currentResults = r.items;
+    if (!r.items.length) html += '<li class="msg">No school found for “' + esc(q.trim()) + '”. Try fewer letters, or choose Other below.</li>';
+    r.items.forEach((s, i) => { html += '<li role="option" data-i="' + i + '">' + highlight(s.n, q) + '</li>'; });
+    if (r.total > r.items.length) html += '<li class="msg">Showing ' + r.items.length + ' of ' + r.total + ' — type more letters to narrow down.</li>';
+  }
+  html += '<li role="option" class="other" data-other="1">My school is not in this list → Other</li>';
+  schoolList.innerHTML = html;
+  activeIdx = -1;
+  openList();
+}
+
+function pickSchool(s){
+  selectedSchool = s.n;
+  schoolInput.value = s.n;
+  closeList();
+  setErr("schoolSearch", "");
+  schoolHint.textContent = "✓ School selected.";
+}
+
+function moveActive(delta){
+  const opts = [...schoolList.querySelectorAll("li[role=option]")];
+  if (!opts.length) return;
+  activeIdx = (activeIdx + delta + opts.length) % opts.length;
+  opts.forEach((o, i) => o.classList.toggle("active", i === activeIdx));
+  opts[activeIdx].scrollIntoView({ block: "nearest" });
+}
+
+schoolInput.addEventListener("input", () => { selectedSchool = null; renderList(); });
+schoolInput.addEventListener("focus", () => { if (!schoolInput.readOnly && districtList.length) renderList(); });
+schoolInput.addEventListener("keydown", ev => {
+  if (schoolList.hidden && ev.key === "ArrowDown") { renderList(); return; }
+  if (ev.key === "ArrowDown"){ ev.preventDefault(); moveActive(1); }
+  else if (ev.key === "ArrowUp"){ ev.preventDefault(); moveActive(-1); }
+  else if (ev.key === "Escape"){ closeList(); }
+  else if (ev.key === "Enter" && !schoolList.hidden){
+    const li = schoolList.querySelectorAll("li[role=option]")[activeIdx];
+    if (li){ ev.preventDefault(); chooseItem(li); }
+  }
+});
+function chooseItem(li){
+  if (li.dataset.other) enterOtherSchoolMode();
+  else if (li.dataset.i !== undefined) pickSchool(currentResults[+li.dataset.i]);
+}
+schoolList.addEventListener("pointerdown", ev => {
+  const li = ev.target.closest("li[role=option]");
+  if (!li) return;
+  ev.preventDefault();                 // keep focus in the input
+  chooseItem(li);
+});
+document.addEventListener("pointerdown", ev => {
+  if (!ev.target.closest(".combo")) closeList();
+});
+
+/* ---------------- validation + submit ---------------- */
+function setErr(id, msg){
+  const el = document.querySelector('.err[data-for="' + id + '"]');
+  if (el) el.textContent = msg;
+  const box = el && el.closest(".field");
+  if (box) box.classList.toggle("invalid", !!msg);
+}
+function clearErrors(){
+  document.querySelectorAll(".err").forEach(e => { e.textContent = ""; });
+  document.querySelectorAll(".field.invalid").forEach(f => f.classList.remove("invalid"));
+  $("formError").hidden = true;
+}
+function showFormError(msg){ const b = $("formError"); b.textContent = msg; b.hidden = false; }
+
+function collect(){
+  clearErrors();
+  let firstBad = null;
+  const bad = (id, msg) => { setErr(id, msg); if (!firstBad) firstBad = $(id); };
+
+  const regNo = $("regNo").value.trim();
+  const name = clean($("studentName").value);
+  const cls = classSel.value;
+  const dv = districtSel.value;
+
+  if (!regNo) bad("regNo", "Please enter the registration number.");
+  if (name.length < 2) bad("studentName", "Please enter the student's name.");
+  if (!cls) bad("classSel", "Please select the class.");
+
+  let district = "";
+  if (!dv) bad("district", "Please select the district.");
+  else if (dv === "__other__"){
+    district = clean($("otherDistrict").value);
+    if (district.length < 2) bad("otherDistrict", "Please type your district.");
+  } else district = dv;
+
+  let school = "", source = "";
+  if (dv && dv !== "__other__" && schoolMode === "list"){
+    if (!selectedSchool){
+      const k = norm(schoolInput.value);
+      const exact = k && districtList.find(s => s.k === k);
+      if (exact) selectedSchool = exact.n;
+    }
+    if (!selectedSchool) bad("schoolSearch", "Pick your school from the list, or choose “Other” if it is not there.");
+    else { school = selectedSchool; source = "List"; }
+  } else if (dv) {
+    school = clean($("otherSchool").value);
+    source = "Other";
+    if (school.length < 3) bad("otherSchool", "Please type the full name of your school.");
+  }
+
+  if (firstBad){ firstBad.focus(); return null; }
+  return { regNo: regNo, studentName: name, className: cls, state: STATE_NAME, district: district, school: school, schoolSource: source };
+}
+
+$("regForm").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  if (submitting) return;
+  const payload = collect();
+  if (!payload) return;
+  if (/PASTE_YOUR/.test(APPS_SCRIPT_URL)){
+    showFormError("Setup incomplete: paste your Apps Script web-app URL into APPS_SCRIPT_URL in this file.");
+    return;
+  }
+  submitting = true;
+  const btn = $("submitBtn");
+  btn.disabled = true; btn.textContent = "Submitting…";
+  try {
+    // plain-text body => simple request, no CORS preflight (works with Apps Script)
+    const res = await fetch(APPS_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!data || data.status !== "success") throw new Error((data && data.message) || "Server error");
+    showDone(payload);
+  } catch (err) {
+    showFormError("Could not submit (" + err.message + "). Please check your internet and try again.");
+  } finally {
+    submitting = false; btn.disabled = false; btn.textContent = "Submit";
+  }
+});
+
+/* ---------------- after submit ---------------- */
+function showDone(p){
+  $("regForm").hidden = true;
+  $("dataStatus").hidden = true;
+  const rows = [["Registration No.", p.regNo], ["Student", p.studentName], ["Class", p.className],
+                ["School", p.school], ["District, State", p.district + ", " + p.state]];
+  $("doneDetails").innerHTML = rows.map(r => "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>").join("");
+  $("done").hidden = false;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function backToForm(){
+  $("done").hidden = true; $("regForm").hidden = false; clearErrors();
+}
+$("againSame").addEventListener("click", () => {
+  $("regNo").value = ""; $("studentName").value = ""; classSel.value = "";
+  backToForm(); $("regNo").focus();
+});
+$("againNew").addEventListener("click", () => {
+  $("regForm").reset();
+  stateSel.value = STATE_NAME;
+  onDistrictChange();
+  backToForm(); $("regNo").focus();
+});
+
+districtSel.addEventListener("change", onDistrictChange);
+$("backToSearch").addEventListener("click", backToSearch);
+
+loadData();
+})();
+</script>
+</body>
+</html>
